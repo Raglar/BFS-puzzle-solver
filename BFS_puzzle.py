@@ -1,11 +1,15 @@
 """
 Roman Andres Aguilar Hernández
 Ricardo Huerta Dorame
+
+Para interpretarlo:
+python parcial1.py texto.txt
 """
 import random
 import time
 import math
 import fileinput
+import copy
 """
 FUNCTION DEFINITIONS
 """
@@ -43,6 +47,10 @@ def readFile():
     myList = [i.split('\n')[0] for i in generalArray]
     myList = [i.split(',') for i in myList]
     j = 0
+    for i in range(len(myList)):
+        for j in range(int(len(myList)/2)):
+            myList[i][j] = int(myList[i][j])
+
     currentArray = myList[:n]
     goalArray = myList[n:]
 
@@ -64,108 +72,185 @@ def h2(someList):
             coord = findPosition(someList[x][y], goalArray)
             deltaX = abs(x - coord[0])
             deltaY = abs(y - coord[1])
-            counter += deltaX + deltaY                               
+            counter += deltaX + deltaY
     return counter
 
 #Auxiliary function to add both h1 and h2 results and get the final Heuristic result
 def h(someList):
-    return h1(someList) + h2(someList)
+    return h1(someList) * 0.30 + h2(someList) * 0.70
+    #return h1(someList)
+    #return h2(someList)
 
 #Function to generate and return an array with all possible children (nodes) of a given node
 def generateChildren(someNode):
     global n
     children = []
-    x = someNode.pos0[0]
-    y = someNode.pos0[1]
+    coord = findPosition(0, someNode.board)
+    x = coord[0]
+    y = coord[1]
     #UP
-    if (x - 1) >= 0:
-        newBoard = someNode.board
+    if (x - 1) >= 0 and someNode.mov != 'D':
+        newBoard = copy.deepcopy(someNode.board)
         value = newBoard[x - 1][y]
         newBoard[x][y] = value
         newBoard[x - 1][y] = 0
-        new = Node(None, 'U', None, None, newBoard)
-        children.append(new)
-                    
+        children.append(Node( someNode.id, 'U', h(newBoard), someNode.gValue + 1, newBoard, someNode))
+        #printMatrix(newBoard)
+        #print()
+
     #DOWN
-    if (x + 1) < n:
-        newBoard = someNode.board
+    if (x + 1) < n and someNode.mov != 'U':
+        newBoard = copy.deepcopy(someNode.board)
         value = newBoard[x + 1][y]
         newBoard[x][y] = value
         newBoard[x + 1][y] = 0
-        new = Node(None, 'D', None, None, newBoard)
-        children.append(new)
-        
+        children.append(Node(someNode.id, 'D', h(newBoard), someNode.gValue + 1, newBoard, someNode))
+        #printMatrix(newBoard)
+        #print()
+
     #LEFT
-    if (y - 1) >= 0:
-        newBoard = someNode.board
+    if (y - 1) >= 0 and someNode.mov != 'R':
+        newBoard = copy.deepcopy(someNode.board)
         value = newBoard[x][y - 1]
         newBoard[x][y] = value
         newBoard[x][y - 1] = 0
-        new = Node(None, 'L', None, None, newBoard)
-        children.append(new)
-                
+        children.append(Node(someNode.id, 'L', h(newBoard), someNode.gValue + 1, newBoard, someNode))
+        #printMatrix(newBoard)
+        #print()
+
     #RIGHT
-    if (y + 1) < n:
-        newBoard = someNode.board
+    if (y + 1) < n and someNode.mov != 'L':
+        newBoard = copy.deepcopy(someNode.board)
         value = newBoard[x][y + 1]
         newBoard[x][y] = value
         newBoard[x][y + 1] = 0
-        new = Node(None, 'R', None, None, newBoard)
-        children.append(new)
-    
+        children.append(Node(someNode.id, 'R', h(newBoard), someNode.gValue + 1, newBoard, someNode))
+        #printMatrix(newBoard)
+        #print()
+
     return children
+
+#Function to print the path of movements
+def printPath(someNode):
+    #print(someNode.fatherIndex)
+    if someNode.fatherIndex == -1:
+        return ""
+    else:
+        fullPath = someNode.mov + "," + printPath(cl[findIndexByID(someNode.fatherIndex, cl)])
+        return fullPath
+
+#Function to count the path of movements
+def countPath(someNode):
+    return someNode.gValue
+
+def killChildrenOf(idToSearch):
+
+    for i, nodes in enumerate(cl):
+        if nodes.fatherIndex == idToSearch:
+            #print("Hijo matado en CLOSED")
+            cl.pop(i)
+
+    for i, nodes in enumerate(op):
+        if nodes.fatherIndex == idToSearch:
+            #print("Hijo matado en OPEN")
+            op.pop(i)
+
+
+
+#Function to find the index of a node in a list of nodes, given an ID
+def findIndexByID(idToFind, someList):
+    for i, node in enumerate(someList):
+        #print(node.id)
+        if node.id == idToFind:
+            return someList.index(node)
+    return 0
 
 """
 NODE DEFINITION
 """
-class Node:     
-    def __init__(self, fatherIndex, mov, hValue, gValue, board):
+class Node:
+    nodeId = 0
+
+    def __init__(self, fatherIndex, mov, hValue, gValue, board, fatherNode):
         self.fatherIndex = fatherIndex
         self.mov = mov
         self.hValue = hValue
         self.gValue = gValue
         self.board = board
-        self.pos0 = findPosition(0, board)
-    
+        self.id = Node.nodeId
+        self.fatherNode = fatherNode
+        Node.nodeId += 1
+
     def __eq__(self, other):
         return self.board == other.board
-    
+
     def displayNode(self):
-        print ("Father : ", self.fatherIndex,  " Movement: ", self.mov, 
+        print ("Father : ", self.fatherIndex,  " Movement: ", self.mov,
         " hValue: ", self.hValue, "gValue: ", self.gValue, "\nBoard:\n", printMatrix(self.board))
 """
 PROGRAM
 """
 #MATRIX CREATION
 readFile()
-#print ("Size of Matrix is {} x {}".format(n, n))
 #BFS START
-global op 
-global cl 
+global op
+global cl
+
+fullPath = ""
+
 op = []
 cl = []
-firstNode = Node(None, None, h(currentArray), 0, currentArray)
+print("ARREGLO INICIAL")
+printMatrix(currentArray)
+#print()
+firstNode = Node(-1, 'root', h(currentArray), 0, currentArray, None)
 op.append(firstNode)
 
 #Continue while Open is not empty
-while not op:
+while op != []:
     x = op.pop(0)
 
     if x.board == goalArray:
-        #Return path Example = (U,U,D,R)
-        pass
+        print("RESPUESTA:")
+        printMatrix(x.board)
+        fullPathToPrint = printPath(x)
+        fullPathToPrint = fullPathToPrint[:-1]
+        fullPathToPrint = fullPathToPrint[::-1]
+        print("La salida es:",fullPathToPrint)
+        exit()
     else:
-        children = generateChildren()
+        children = generateChildren(x)
+        childInOpen = False
+        childInClosed = False
 
-        for child in children:
+        for i, child in enumerate(children):
+
             #case child is already in open
-            if child in op:
-                print("Hijo en OPEN")
+            for j, nodes in enumerate(op):
+                if  op[j] == child:
+                    childInOpen = True
+                    if child.gValue < op[j].gValue:
+                        op[j].hValue = child.hValue
+                        op[j].gValue = child.gValue
+                        op[j].fatherIndex = child.fatherIndex
+
             #case child is already in closed
-            elif child in children:
-                if child in cl:
-                    print("Hijo en CLOSED")
+            for k, nodes in enumerate(cl):
+                if  cl[k] == child:
+                    #print("Hijo en CLOSED")
+                    childInClosed = True
+                    if child.gValue < cl[k].gValue:
+                        killChildrenOf(cl[k].id)
+                        cl.pop(k)
+                        op.append(child)
+
             #case child is not on open or closed
-            else:
-                child.hValue = h(child.board)
+            if not childInOpen and not childInClosed:
+                #print("Hijo siendo agregado a OPEN")
                 op.append(child)
+
+            childInOpen = False
+            childInClosed = False
+
+    cl.append(x)
+    op.sort(key=lambda la: la.hValue, reverse=False)
